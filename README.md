@@ -2,7 +2,7 @@
 Code for TASE Paper: DL-DRL: A Double-Level Deep Reinforcement Learning Approach for Large-Scale Task Scheduling of Multi-UAV
 It contains the implementation codes for fleet with 4 and 6 UAVs
 
-This code is adapted from the responsibility [attention-learn-to-route](https://github.com/wouterkool/attention-learn-to-route)
+This code is adapted from the repository [attention-learn-to-route](https://github.com/wouterkool/attention-learn-to-route)
 
 ## Quick Start
 
