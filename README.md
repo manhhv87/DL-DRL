@@ -19,7 +19,8 @@ Test the model, run `./UAV6/fleet_v6/eval.py`
 ## Reference 
 If our work is helpful for your research, please cite our paper
 
-```@ARTICLE{xiao2025dldrl,
+```
+@ARTICLE{xiao2025dldrl,
   author={Mao, Xiao and Wu, Guohua and Fan, Mingfeng and Cao, Zhiguang and Pedrycz, Witold},
   journal={IEEE Transactions on Automation Science and Engineering}, 
   title={DL-DRL: A Double-Level Deep Reinforcement Learning Approach for Large-Scale Task Scheduling of Multi-UAV}, 
