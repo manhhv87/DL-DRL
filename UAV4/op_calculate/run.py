@@ -11,7 +11,13 @@ from tensorboard_logger import Logger as TbLogger
 from op_calculate.nets.critic_network import CriticNetwork
 from op_calculate.options import Lget_options
 from op_calculate.train import Ltrain_epoch, validate, get_inner_model
-from op_calculate.reinforce_baselines import NoBaseline, ExponentialBaseline, CriticBaseline, RolloutBaseline, WarmupBaseline
+from op_calculate.reinforce_baselines import (
+    NoBaseline,
+    ExponentialBaseline,
+    CriticBaseline,
+    RolloutBaseline,
+    WarmupBaseline,
+)
 from op_calculate.nets.attention_model import AttentionModel
 from op_calculate.nets.pointer_network import PointerNetwork, CriticNetworkLSTM
 from op_calculate.utils import torch_load_cpu, load_problem
@@ -28,11 +34,17 @@ def run(Lopts):
     # Optionally configure tensorboard
     tb_logger = None
     if not Lopts.no_tensorboard:
-        tb_logger = TbLogger(os.path.join(Lopts.log_dir, "{}_{}".format(Lopts.problem, Lopts.graph_size), Lopts.run_name))
+        tb_logger = TbLogger(
+            os.path.join(
+                Lopts.log_dir,
+                "{}_{}".format(Lopts.problem, Lopts.graph_size),
+                Lopts.run_name,
+            )
+        )
 
     os.makedirs(Lopts.save_dir)
     # Save arguments so exact configuration can always be found
-    with open(os.path.join(Lopts.save_dir, "args.json"), 'w') as f:
+    with open(os.path.join(Lopts.save_dir, "args.json"), "w") as f:
         json.dump(vars(Lopts), f, indent=True)
 
     # Set the device
@@ -43,17 +55,18 @@ def run(Lopts):
 
     # Load data from load_path
     load_data = {}
-    assert Lopts.load_path is None or Lopts.resume is None, "Only one of load path and resume can be given"
+    assert (
+        Lopts.load_path is None or Lopts.resume is None
+    ), "Only one of load path and resume can be given"
     load_path = Lopts.load_path if Lopts.load_path is not None else Lopts.resume
     if load_path is not None:
-        print('  [*] Loading data from {}'.format(load_path))
+        print("  [*] Loading data from {}".format(load_path))
         load_data = torch_load_cpu(load_path)
 
     # Initialize model
-    model_class = {
-        'attention': AttentionModel,
-        'pointer': PointerNetwork
-    }.get(Lopts.model, None)
+    model_class = {"attention": AttentionModel, "pointer": PointerNetwork}.get(
+        Lopts.model, None
+    )
     assert model_class is not None, "Unknown model: {}".format(model_class)
     model = model_class(
         Lopts.embedding_dim,
@@ -65,7 +78,7 @@ def run(Lopts):
         normalization=Lopts.normalization,
         tanh_clipping=Lopts.tanh_clipping,
         checkpoint_encoder=Lopts.checkpoint_encoder,
-        shrink_size=Lopts.shrink_size
+        shrink_size=Lopts.shrink_size,
     ).to(Lopts.device)
 
     if Lopts.use_cuda and torch.cuda.device_count() > 1:
@@ -73,13 +86,13 @@ def run(Lopts):
 
     # Overwrite model parameters by parameters to load
     model_ = get_inner_model(model)
-    model_.load_state_dict({**model_.state_dict(), **load_data.get('model', {})})
+    model_.load_state_dict({**model_.state_dict(), **load_data.get("model", {})})
 
     # Initialize baseline
-    if Lopts.baseline == 'exponential':
+    if Lopts.baseline == "exponential":
         baseline = ExponentialBaseline(Lopts.exp_beta)
-    elif Lopts.baseline == 'critic' or Lopts.baseline == 'critic_lstm':
-        assert problem.NAME == 'tsp', "Critic only supported for TSP"
+    elif Lopts.baseline == "critic" or Lopts.baseline == "critic_lstm":
+        assert problem.NAME == "tsp", "Critic only supported for TSP"
         baseline = CriticBaseline(
             (
                 CriticNetworkLSTM(
@@ -87,45 +100,46 @@ def run(Lopts):
                     Lopts.embedding_dim,
                     Lopts.hidden_dim,
                     Lopts.n_encode_layers,
-                    Lopts.tanh_clipping
+                    Lopts.tanh_clipping,
                 )
-                if Lopts.baseline == 'critic_lstm'
-                else
-                CriticNetwork(
+                if Lopts.baseline == "critic_lstm"
+                else CriticNetwork(
                     2,
                     Lopts.embedding_dim,
                     Lopts.hidden_dim,
                     Lopts.n_encode_layers,
-                    Lopts.normalization
+                    Lopts.normalization,
                 )
             ).to(Lopts.device)
         )
-    elif Lopts.baseline == 'rollout':
+    elif Lopts.baseline == "rollout":
         baseline = RolloutBaseline(model, problem, Lopts)
     else:
         assert Lopts.baseline is None, "Unknown baseline: {}".format(Lopts.baseline)
         baseline = NoBaseline()
 
     if Lopts.bl_warmup_epochs > 0:
-        baseline = WarmupBaseline(baseline, Lopts.bl_warmup_epochs, warmup_exp_beta=Lopts.exp_beta)
+        baseline = WarmupBaseline(
+            baseline, Lopts.bl_warmup_epochs, warmup_exp_beta=Lopts.exp_beta
+        )
 
     # Load baseline from data, make sure script is called with same type of baseline
-    if 'baseline' in load_data:
-        baseline.load_state_dict(load_data['baseline'])
+    if "baseline" in load_data:
+        baseline.load_state_dict(load_data["baseline"])
 
     # Initialize optimizer
     optimizer = optim.Adam(
-        [{'params': model.parameters(), 'lr': Lopts.lr_model}]
+        [{"params": model.parameters(), "lr": Lopts.lr_model}]
         + (
-            [{'params': baseline.get_learnable_parameters(), 'lr': Lopts.lr_critic}]
+            [{"params": baseline.get_learnable_parameters(), "lr": Lopts.lr_critic}]
             if len(baseline.get_learnable_parameters()) > 0
             else []
         )
     )
 
     # Load optimizer state
-    if 'optimizer' in load_data:
-        optimizer.load_state_dict(load_data['optimizer'])
+    if "optimizer" in load_data:
+        optimizer.load_state_dict(load_data["optimizer"])
         for state in optimizer.state.values():
             for k, v in state.items():
                 # if isinstance(v, torch.Tensor):
@@ -133,18 +147,26 @@ def run(Lopts):
                     state[k] = v.to(Lopts.device)
 
     # Initialize learning rate scheduler, decay by lr_decay once per epoch!
-    lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: Lopts.lr_decay ** epoch)
+    lr_scheduler = optim.lr_scheduler.LambdaLR(
+        optimizer, lambda epoch: Lopts.lr_decay**epoch
+    )
 
     # Start the actual training loop
     val_dataset = problem.make_dataset(
-        size=Lopts.graph_size, num_samples=Lopts.val_size, filename=Lopts.val_dataset, distribution=Lopts.data_distribution)
+        size=Lopts.graph_size,
+        num_samples=Lopts.val_size,
+        filename=Lopts.val_dataset,
+        distribution=Lopts.data_distribution,
+    )
 
     if Lopts.resume:
-        epoch_resume = int(os.path.splitext(os.path.split(Lopts.resume)[-1])[0].split("-")[1])
+        epoch_resume = int(
+            os.path.splitext(os.path.split(Lopts.resume)[-1])[0].split("-")[1]
+        )
 
-        torch.set_rng_state(load_data['rng_state'])
+        torch.set_rng_state(load_data["rng_state"])
         if Lopts.use_cuda:
-            torch.cuda.set_rng_state_all(load_data['cuda_rng_state'])
+            torch.cuda.set_rng_state_all(load_data["cuda_rng_state"])
         # Set the random states
         # Dumping of state was done before epoch callback, so do that now (model is loaded)
         baseline.epoch_callback(model, epoch_resume)
@@ -164,15 +186,18 @@ def run(Lopts):
                 val_dataset,
                 problem,
                 tb_logger,
-                Lopts
+                Lopts,
             )
 
     return model, optimizer, baseline, lr_scheduler, problem, tb_logger, Lopts
 
+
 def lRun(pre_train_epochs):
     Lopts = Lget_options()
     Lopts.n_epochs = pre_train_epochs
-    Lmodel, Loptimizer, Lbaseline, Llr_scheduler, Lproblem, Ltb_logger, Lopts = run(Lopts)
+    Lmodel, Loptimizer, Lbaseline, Llr_scheduler, Lproblem, Ltb_logger, Lopts = run(
+        Lopts
+    )
     Lbaseline.baseline.bl_vals = np.zeros(Lbaseline.baseline.bl_vals.shape, dtype=float)
-    Lbaseline.baseline.mean = 0.
+    Lbaseline.baseline.mean = 0.0
     return Lmodel, Loptimizer, Lbaseline, Llr_scheduler, Lproblem, Ltb_logger, Lopts

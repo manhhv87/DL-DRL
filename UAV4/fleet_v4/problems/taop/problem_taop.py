@@ -9,27 +9,50 @@ import numpy as np
 
 
 class TAOP(object):
-    NAME = 'taop'
+    NAME = "taop"
     VEHICLE_NUM = 4
 
     # @profile
     @staticmethod
     def LmaskDataset(dataset, tour_1, tour_2, tour_3, tour_4):
-        batch_size = dataset['loc'].size()[0]
-        dataset_1, dataset_2, dataset_3, dataset_4 = dataset.copy(), dataset.copy(), dataset.copy(), dataset.copy()
-        loc_with_depot = torch.cat((dataset['depot'][:, None, :], dataset['loc']), 1)
+        batch_size = dataset["loc"].size()[0]
+        dataset_1, dataset_2, dataset_3, dataset_4 = (
+            dataset.copy(),
+            dataset.copy(),
+            dataset.copy(),
+            dataset.copy(),
+        )
+        loc_with_depot = torch.cat((dataset["depot"][:, None, :], dataset["loc"]), 1)
 
         mask1 = get_mask(tour_1, batch_size)
         mask2 = get_mask(tour_2, batch_size)
         mask3 = get_mask(tour_3, batch_size)
         mask4 = get_mask(tour_4, batch_size)
-        dataset_1['mask'], dataset_2['mask'], dataset_3['mask'], dataset_4['mask'] = mask1, mask2, mask3, mask4
+        dataset_1["mask"], dataset_2["mask"], dataset_3["mask"], dataset_4["mask"] = (
+            mask1,
+            mask2,
+            mask3,
+            mask4,
+        )
 
-        loc_1 = loc_with_depot.gather(1, tour_1[..., None].expand(*tour_1.size(), loc_with_depot.size(-1)))
-        loc_2 = loc_with_depot.gather(1, tour_2[..., None].expand(*tour_2.size(), loc_with_depot.size(-1)))
-        loc_3 = loc_with_depot.gather(1, tour_3[..., None].expand(*tour_3.size(), loc_with_depot.size(-1)))
-        loc_4 = loc_with_depot.gather(1, tour_4[..., None].expand(*tour_4.size(), loc_with_depot.size(-1)))
-        dataset_1['loc'], dataset_2['loc'], dataset_3['loc'], dataset_4['loc'] = loc_1, loc_2, loc_3, loc_4
+        loc_1 = loc_with_depot.gather(
+            1, tour_1[..., None].expand(*tour_1.size(), loc_with_depot.size(-1))
+        )
+        loc_2 = loc_with_depot.gather(
+            1, tour_2[..., None].expand(*tour_2.size(), loc_with_depot.size(-1))
+        )
+        loc_3 = loc_with_depot.gather(
+            1, tour_3[..., None].expand(*tour_3.size(), loc_with_depot.size(-1))
+        )
+        loc_4 = loc_with_depot.gather(
+            1, tour_4[..., None].expand(*tour_4.size(), loc_with_depot.size(-1))
+        )
+        dataset_1["loc"], dataset_2["loc"], dataset_3["loc"], dataset_4["loc"] = (
+            loc_1,
+            loc_2,
+            loc_3,
+            loc_4,
+        )
 
         return dataset_1, dataset_2, dataset_3, dataset_4
 
@@ -41,7 +64,7 @@ class TAOP(object):
         model.cuda()
         if not Ltrain:
             model.eval()
-            model.set_decode_type('greedy')
+            model.set_decode_type("greedy")
             with torch.no_grad():
                 length1, _, pi_1 = model(dataset_1, return_pi=True)
                 length2, _, pi_2 = model(dataset_2, return_pi=True)
@@ -52,17 +75,42 @@ class TAOP(object):
             model.train()
             model.set_decode_type("sampling")
 
-        loc1_depot = torch.cat((dataset_1['depot'][:, None, :], dataset_1['loc']), 1)
-        loc2_depot = torch.cat((dataset_2['depot'][:, None, :], dataset_2['loc']), 1)
-        loc3_depot = torch.cat((dataset_3['depot'][:, None, :], dataset_3['loc']), 1)
-        loc4_depot = torch.cat((dataset_4['depot'][:, None, :], dataset_4['loc']), 1)
-        Ttour_1 = loc1_depot.gather(1, pi_1[..., None].expand(*pi_1.size(), loc1_depot.size(-1))).cpu().numpy()
-        Ttour_2 = loc2_depot.gather(1, pi_2[..., None].expand(*pi_2.size(), loc2_depot.size(-1))).cpu().numpy()
-        Ttour_3 = loc3_depot.gather(1, pi_3[..., None].expand(*pi_3.size(), loc3_depot.size(-1))).cpu().numpy()
-        Ttour_4 = loc4_depot.gather(1, pi_4[..., None].expand(*pi_4.size(), loc4_depot.size(-1))).cpu().numpy()
+        loc1_depot = torch.cat((dataset_1["depot"][:, None, :], dataset_1["loc"]), 1)
+        loc2_depot = torch.cat((dataset_2["depot"][:, None, :], dataset_2["loc"]), 1)
+        loc3_depot = torch.cat((dataset_3["depot"][:, None, :], dataset_3["loc"]), 1)
+        loc4_depot = torch.cat((dataset_4["depot"][:, None, :], dataset_4["loc"]), 1)
+        Ttour_1 = (
+            loc1_depot.gather(
+                1, pi_1[..., None].expand(*pi_1.size(), loc1_depot.size(-1))
+            )
+            .cpu()
+            .numpy()
+        )
+        Ttour_2 = (
+            loc2_depot.gather(
+                1, pi_2[..., None].expand(*pi_2.size(), loc2_depot.size(-1))
+            )
+            .cpu()
+            .numpy()
+        )
+        Ttour_3 = (
+            loc3_depot.gather(
+                1, pi_3[..., None].expand(*pi_3.size(), loc3_depot.size(-1))
+            )
+            .cpu()
+            .numpy()
+        )
+        Ttour_4 = (
+            loc4_depot.gather(
+                1, pi_4[..., None].expand(*pi_4.size(), loc4_depot.size(-1))
+            )
+            .cpu()
+            .numpy()
+        )
         total_cost = length1 + length2 + length3 + length4
 
         return total_cost, None, Ttour_1, Ttour_2, Ttour_3, Ttour_4
+
     @staticmethod
     def make_dataset(*args, **kwargs):
         return TAOPDataset(*args, **kwargs)
@@ -72,15 +120,25 @@ class TAOP(object):
         return StateTAOP.initialize(*args, **kwargs)
 
     @staticmethod
-    def beam_search(input, beam_size, expand_size=None,
-                    compress_mask=False, model=None, max_calc_batch_size=4096):
+    def beam_search(
+        input,
+        beam_size,
+        expand_size=None,
+        compress_mask=False,
+        model=None,
+        max_calc_batch_size=4096,
+    ):
         assert model is not None, "Provide model"
 
         fixed = model.precompute_fixed(input)
 
         def propose_expansions(beam):
             return model.propose_expansions(
-                beam, fixed, expand_size, normalize=True, max_calc_batch_size=max_calc_batch_size
+                beam,
+                fixed,
+                expand_size,
+                normalize=True,
+                max_calc_batch_size=max_calc_batch_size,
             )
 
         state = TAOP.make_state(
@@ -88,6 +146,7 @@ class TAOP(object):
         )
 
         return beam_search(state, beam_size, propose_expansions)
+
 
 def get_mask(tour, batch_size):
     Tour = tour.cpu().numpy()
@@ -98,39 +157,44 @@ def get_mask(tour, batch_size):
         index[i, index_i] = 0
     return index
 
+
 def make_instance(args):
     depot, loc, prize, max_length, *args = args
     grid_size = 1
     if len(args) > 0:
         depot_types, customer_types, grid_size = args
     return {
-        'loc': torch.tensor(loc, dtype=torch.float) / grid_size,
-        'prize': torch.tensor(prize, dtype=torch.float),  # scale demand
-        'depot': torch.tensor(depot, dtype=torch.float) / grid_size,
-        'max_length': torch.tensor(max_length, dtype=torch.float)
+        "loc": torch.tensor(loc, dtype=torch.float) / grid_size,
+        "prize": torch.tensor(prize, dtype=torch.float),  # scale demand
+        "depot": torch.tensor(depot, dtype=torch.float) / grid_size,
+        "max_length": torch.tensor(max_length, dtype=torch.float),
     }
 
 
 class TAOPDataset(Dataset):
 
-    def __init__(self, filename=None, size=50, num_samples=10000, offset=0, distribution=None):
+    def __init__(
+        self, filename=None, size=50, num_samples=10000, offset=0, distribution=None
+    ):
         super(TAOPDataset, self).__init__()
 
         self.data_set = []
         if filename is not None:
-            assert os.path.splitext(filename)[1] == '.pkl'
+            assert os.path.splitext(filename)[1] == ".pkl"
 
-            with open(filename, 'rb') as f:
+            with open(filename, "rb") as f:
                 data = pickle.load(f)
-            self.data = [make_instance(args) for args in data[offset:offset + num_samples]]
+            self.data = [
+                make_instance(args) for args in data[offset : offset + num_samples]
+            ]
 
         else:
             self.data = [
                 {
-                    'loc': torch.FloatTensor(size, 2).uniform_(0, 1),
-                    'depot': torch.FloatTensor(2).uniform_(0, 1),
-                    'prize': torch.ones(size),
-                    'max_length': torch.tensor(2.)
+                    "loc": torch.FloatTensor(size, 2).uniform_(0, 1),
+                    "depot": torch.FloatTensor(2).uniform_(0, 1),
+                    "prize": torch.ones(size),
+                    "max_length": torch.tensor(2.0),
                 }
                 for i in range(num_samples)
             ]
@@ -142,5 +206,3 @@ class TAOPDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx]  # index of sampled data
-
-

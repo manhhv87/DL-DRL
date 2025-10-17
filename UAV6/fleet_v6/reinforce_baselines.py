@@ -5,6 +5,7 @@ from scipy.stats import ttest_rel
 import copy
 from train import rollout, get_inner_model
 
+
 class Baseline(object):
 
     def wrap_dataset(self, dataset):
@@ -31,7 +32,12 @@ class Baseline(object):
 
 class WarmupBaseline(Baseline):
 
-    def __init__(self, baseline, n_epochs=1, warmup_exp_beta=0.8, ):
+    def __init__(
+        self,
+        baseline,
+        n_epochs=1,
+        warmup_exp_beta=0.8,
+    ):
         super(Baseline, self).__init__()
 
         self.baseline = baseline
@@ -59,7 +65,9 @@ class WarmupBaseline(Baseline):
         v, l = self.baseline.eval(x, c)
         vw, lw = self.warmup_baseline.eval(x, c)
         # Return convex combination of baseline and of loss
-        return self.alpha * v + (1 - self.alpha) * vw, self.alpha * l + (1 - self.alpha * lw)
+        return self.alpha * v + (1 - self.alpha) * vw, self.alpha * l + (
+            1 - self.alpha * lw
+        )
 
     def epoch_callback(self, model, Lmodel, epoch):
         # Need to call epoch callback of inner model (also after first epoch if we have not used it)
@@ -91,23 +99,21 @@ class ExponentialBaseline(Baseline):
         self.beta = beta
         self.v = None
 
-    def eval(self, x, c): # x is data and c is cost in actor network
+    def eval(self, x, c):  # x is data and c is cost in actor network
 
         if self.v is None:
             v = c.mean()
         else:
-            v = self.beta * self.v + (1. - self.beta) * c.mean()
+            v = self.beta * self.v + (1.0 - self.beta) * c.mean()
 
         self.v = v.detach()  # Detach since we never want to backprop
         return self.v, 0  # No loss
 
     def state_dict(self):
-        return {
-            'v': self.v
-        }
+        return {"v": self.v}
 
     def load_state_dict(self, state_dict):
-        self.v = state_dict['v']
+        self.v = state_dict["v"]
 
 
 class CriticBaseline(Baseline):
@@ -129,12 +135,10 @@ class CriticBaseline(Baseline):
         pass
 
     def state_dict(self):
-        return {
-            'critic': self.critic.state_dict()
-        }
+        return {"critic": self.critic.state_dict()}
 
     def load_state_dict(self, state_dict):
-        critic_state_dict = state_dict.get('critic', {})
+        critic_state_dict = state_dict.get("critic", {})
         if not isinstance(critic_state_dict, dict):  # backwards compatibility
             critic_state_dict = critic_state_dict.state_dict()
         self.critic.load_state_dict({**self.critic.state_dict(), **critic_state_dict})
@@ -157,19 +161,30 @@ class RolloutBaseline(Baseline):
 
         if dataset is not None:
             if len(dataset) != self.opts.val_size:
-                print("Warning: not using saved baseline dataset since val_size does not match")
+                print(
+                    "Warning: not using saved baseline dataset since val_size does not match"
+                )
                 dataset = None
-            elif (dataset[0] if self.problem.NAME == 'tsp' else dataset[0]['loc']).size(0) != self.opts.graph_size:
-                print("Warning: not using saved baseline dataset since graph_size does not match")
+            elif (dataset[0] if self.problem.NAME == "tsp" else dataset[0]["loc"]).size(
+                0
+            ) != self.opts.graph_size:
+                print(
+                    "Warning: not using saved baseline dataset since graph_size does not match"
+                )
                 dataset = None
 
         if dataset is None:
             self.dataset = self.problem.make_dataset(
-                size=self.opts.graph_size, num_samples=self.opts.val_size, distribution=self.opts.data_distribution)
+                size=self.opts.graph_size,
+                num_samples=self.opts.val_size,
+                distribution=self.opts.data_distribution,
+            )
         else:
             self.dataset = dataset
         print("Evaluating baseline model on evaluation dataset")
-        self.bl_vals = rollout(self.model, self.Lmodel, self.dataset, self.opts).cpu().numpy()
+        self.bl_vals = (
+            rollout(self.model, self.Lmodel, self.dataset, self.opts).cpu().numpy()
+        )
         self.mean = self.bl_vals.mean()
         self.epoch = epoch
 
@@ -177,10 +192,14 @@ class RolloutBaseline(Baseline):
         print("Evaluating baseline on dataset...")
         # Need to convert baseline to 2D to prevent converting to double, see
         # https://discuss.pytorch.org/t/dataloader-gives-double-instead-of-float/717/3
-        return BaselineDataset(dataset, rollout(self.model, self.Lmodel, dataset, self.opts).view(-1, 1))  # [epoch_size, 1] (num_samples)
+        return BaselineDataset(
+            dataset, rollout(self.model, self.Lmodel, dataset, self.opts).view(-1, 1)
+        )  # [epoch_size, 1] (num_samples)
 
     def unwrap_batch(self, batch):
-        return batch['data'], batch['baseline'].view(-1)  # Flatten result to undo wrapping as 2D
+        return batch["data"], batch["baseline"].view(
+            -1
+        )  # Flatten result to undo wrapping as 2D
 
     def eval(self, x, c):
         # Use volatile mode for efficient inference (single batch so we do not use rollout function)
@@ -201,8 +220,11 @@ class RolloutBaseline(Baseline):
 
         candidate_mean = candidate_vals.mean()
 
-        print("HIGHER Epoch {} candidate mean {}, baseline epoch {} mean {}, difference {}".format(
-            epoch, candidate_mean, self.epoch, self.mean, candidate_mean - self.mean))
+        print(
+            "HIGHER Epoch {} candidate mean {}, baseline epoch {} mean {}, difference {}".format(
+                epoch, candidate_mean, self.epoch, self.mean, candidate_mean - self.mean
+            )
+        )
 
         # if candidate model have smaller cost than current baseline model
         if candidate_mean - self.mean < 0:
@@ -213,21 +235,21 @@ class RolloutBaseline(Baseline):
             assert t < 0, "T-statistic should be negative"
             print("p-value: {}".format(p_val))
             if p_val < self.opts.bl_alpha:
-                print('Update baseline')
+                print("Update baseline")
                 self._update_model(model, Lmodel, epoch)
 
     def state_dict(self):
-        return {
-            'model': self.model,
-            'dataset': self.dataset,
-            'epoch': self.epoch
-        }
+        return {"model": self.model, "dataset": self.dataset, "epoch": self.epoch}
 
     def load_state_dict(self, state_dict, Lmodel):
         # We make it such that it works whether model was saved as data parallel or not
         load_model = copy.deepcopy(self.model)
-        get_inner_model(load_model).load_state_dict(get_inner_model(state_dict['model']).state_dict())
-        self._update_model(load_model, Lmodel, state_dict['epoch'], state_dict['dataset'])
+        get_inner_model(load_model).load_state_dict(
+            get_inner_model(state_dict["model"]).state_dict()
+        )
+        self._update_model(
+            load_model, Lmodel, state_dict["epoch"], state_dict["dataset"]
+        )
 
 
 class BaselineDataset(Dataset):
@@ -237,13 +259,10 @@ class BaselineDataset(Dataset):
 
         self.dataset = dataset
         self.baseline = baseline
-        assert (len(self.dataset) == len(self.baseline))
+        assert len(self.dataset) == len(self.baseline)
 
     def __getitem__(self, item):
-        return {
-            'data': self.dataset[item],
-            'baseline': self.baseline[item]
-        }
+        return {"data": self.dataset[item], "baseline": self.baseline[item]}
 
     def __len__(self):
         return len(self.dataset)
