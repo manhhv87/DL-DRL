@@ -7,15 +7,12 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 import math
-import numpy as np
 from typing import NamedTuple
 from fleet_v4.utils.tensor_functions import compute_in_batches
 from .graph_encoder import GraphAttentionEncoder
 from torch.nn import DataParallel
 from fleet_v4.utils.beam_search import CachedLookup
 from fleet_v4.utils.functions import sample_many
-import copy
-import random
 
 
 def set_decode_type(model, decode_type):

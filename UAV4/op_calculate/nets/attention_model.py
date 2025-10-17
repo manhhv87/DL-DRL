@@ -4,7 +4,6 @@ from torch.utils.checkpoint import checkpoint
 import math
 from typing import NamedTuple
 from op_calculate.utils.tensor_functions import compute_in_batches
-
 from op_calculate.nets.graph_encoder import GraphAttentionEncoder
 from torch.nn import DataParallel
 from op_calculate.utils.beam_search import CachedLookup
